@@ -19,7 +19,7 @@ int top = 18;
 #define SHT_LOX1 30
 #define SHT_LOX2 52
 const byte VL53LOX_InterruptPinForward = 3;
-const byte VL53LOX_InterruptPinRight = 12;
+const byte VL53LOX_InterruptPinRight = 11;
 
 // objects for the vl53l0x
 Adafruit_VL53L0X lox1 = Adafruit_VL53L0X();
@@ -90,12 +90,26 @@ void setID() {
     while (1)
       ;
   }
-  lox1.startRangeContinuous();
+
   _delay_ms(10);
 
   // activating LOX2
   // digitalWrite(SHT_LOX2, HIGH);
   PORTB = (_BV(1)) | PORTB;
+  Serial.println("Set GPIO Config so if range is lower the LowThreshold "
+                 "trigger Gpio Pin ");
+  lox1.setGpioConfig(VL53L0X_DEVICEMODE_CONTINUOUS_RANGING,
+                     VL53L0X_GPIOFUNCTIONALITY_THRESHOLD_CROSSED_LOW,
+                     VL53L0X_INTERRUPTPOLARITY_LOW);
+
+  // Set Interrupt Treashholds
+  // Low reading set to 250mm  High Set to 350mm
+  FixPoint1616_t LowThreashHold1 = (250 * 65536.0);
+  FixPoint1616_t HighThreashHold1 = (251 * 65536.0);
+  Serial.println("Set Interrupt Threasholds... ");
+  lox1.setInterruptThresholds(LowThreashHold1, HighThreashHold1, true);
+  lox1.startRangeContinuous();
+
   _delay_ms(10);
 
   //initing LOX2
@@ -104,6 +118,8 @@ void setID() {
     while (1)
       ;
   }
+
+
 
   Serial.println("Set GPIO Config so if range is lower the LowThreshold "
                  "trigger Gpio Pin ");
@@ -114,7 +130,7 @@ void setID() {
   // Set Interrupt Treashholds
   // Low reading set to 250mm  High Set to 350mm
   FixPoint1616_t LowThreashHold = (250 * 65536.0);
-  FixPoint1616_t HighThreashHold = (350 * 65536.0);
+  FixPoint1616_t HighThreashHold = (251 * 65536.0);
   Serial.println("Set Interrupt Threasholds... ");
   lox2.setInterruptThresholds(LowThreashHold, HighThreashHold, true);
 
@@ -130,7 +146,7 @@ void read_dual_sensors() {
   lox2.rangingTest(&measure2, false);  // pass in 'true' to get debug data printout!
   Serial.println(measure1.RangeMilliMeter);
   Serial.println(measure2.RangeMilliMeter);
-  if (measure1.RangeMilliMeter >= 350 && measure2.RangeMilliMeter >= 350) {
+  if (measure1.RangeMilliMeter >= 250 && measure2.RangeMilliMeter >= 250) {
     Serial.println("Tornado");
     // digitalWrite(A1_PIN, LOW);
     // digitalWrite(A2_PIN, HIGH);
@@ -139,6 +155,7 @@ void read_dual_sensors() {
     // digitalWrite(B1_PIN, HIGH);
     // digitalWrite(MOTOR_B2_PIN, LOW);
   }
+
   // else if (measure1.RangeMilliMeter <= 250) {
   //   Serial.println("forward");
   //   // digitalWrite(A1_PIN, HIGH);
@@ -185,16 +202,27 @@ void topISR() {
   }
 }
 
-void forward() {
-  int stateRight = ((_BV(6)) & PINB) >> 6;
+void right() {
+  int stateRight = ((_BV(5)) & PINB) >> 5;
   // if (digitalRead(VL53LOX_InterruptPinRight) == LOW) {
   if (stateRight == LOW) {
-    Serial.println("forward!!!");
+    Serial.println("right!!!");
     PORTH = B00010000;
     PORTE = B00101000;
   }
 }
 
+void forward() {
+  int stateForward = ((_BV(5)) & PINE) >> 5;
+  Serial.println("State forward" + stateForward);
+  // if (digitalRead(VL53LOX_InterruptPinRight) == LOW) {
+  if (stateForward == LOW) {
+    Serial.println("Forward!!!");
+    PORTH = B01100000;
+    PORTE = B00100000;
+  }
+  // you have to clear the interrupt to get triggered again
+}
 // PORTB, PORTE, PORTD is INPUT
 
 void setup() {
@@ -232,9 +260,9 @@ void setup() {
   // set pin 18 as input
   PORTD = B00001000;
 
-  // set pin 3, 12 as input
+  // set pin 3, 11 as input
   PORTE = B00100000;
-  PORTB = B01000000;
+  PORTB = B00100000;
 
   attachInterrupt(digitalPinToInterrupt(top), topISR, RISING);
   // Configure Timer 0 for Fast PWM mode
@@ -264,9 +292,9 @@ void setup() {
   // pinMode(VL53LOX_InterruptPinForward, INPUT);
   // pinMode(VL53LOX_InterruptPinRight, INPUT);
 
-  // attachInterrupt(digitalPinToInterrupt(VL53LOX_InterruptPin), forward,
-  //                 FALLING);
-  attachPCINT(digitalPinToPCINT(VL53LOX_InterruptPinRight), forward, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(VL53LOX_InterruptPinForward), forward,
+                  FALLING);
+  attachPCINT(digitalPinToPCINT(VL53LOX_InterruptPinRight), right, CHANGE);
   Serial.println(F("Both in reset mode...(pins are low)"));
 
 
