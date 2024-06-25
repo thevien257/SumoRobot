@@ -67,20 +67,23 @@ void setID() {
   // digitalWrite(SHT_LOX2, LOW);
 
   PORTC = B00000000;
-  PORTB = B00000000;
+  // PORTB = B00000000;
+  PORTB = ~(_BV(1)) & PORTB;
+
   _delay_ms(10);
   // all unreset
   // digitalWrite(SHT_LOX1, HIGH);
   // digitalWrite(SHT_LOX2, HIGH);
   PORTC = B10000000;
-  PORTB = B00000010;
+  PORTB = (_BV(1)) | PORTB;
   _delay_ms(10);
 
   // activating LOX1 and resetting LOX2
   // digitalWrite(SHT_LOX1, HIGH);
   // digitalWrite(SHT_LOX2, LOW);
   PORTC = B10000000;
-  PORTB = B00000000;
+  PORTB = ~(_BV(1)) & PORTB;
+
   // initing LOX1
   if (!lox1.begin(LOX1_ADDRESS)) {
     Serial.println(F("Failed to boot first VL53L0X"));
@@ -92,7 +95,7 @@ void setID() {
 
   // activating LOX2
   // digitalWrite(SHT_LOX2, HIGH);
-  PORTB = B00000010;
+  PORTB = (_BV(1)) | PORTB;
   _delay_ms(10);
 
   //initing LOX2
@@ -109,7 +112,7 @@ void setID() {
                      VL53L0X_INTERRUPTPOLARITY_LOW);
 
   // Set Interrupt Treashholds
-  // Low reading set to 50mm  High Set to 100mm
+  // Low reading set to 250mm  High Set to 350mm
   FixPoint1616_t LowThreashHold = (250 * 65536.0);
   FixPoint1616_t HighThreashHold = (350 * 65536.0);
   Serial.println("Set Interrupt Threasholds... ");
@@ -125,13 +128,14 @@ void read_dual_sensors() {
 
   lox1.rangingTest(&measure1, false);  // pass in 'true' to get debug data printout!
   lox2.rangingTest(&measure2, false);  // pass in 'true' to get debug data printout!
-
-  if (measure1.RangeMilliMeter >= 350 && measure2.RangeMilliMeter >= 350) { 
+  Serial.println(measure1.RangeMilliMeter);
+  Serial.println(measure2.RangeMilliMeter);
+  if (measure1.RangeMilliMeter >= 350 && measure2.RangeMilliMeter >= 350) {
     Serial.println("Tornado");
     // digitalWrite(A1_PIN, LOW);
     // digitalWrite(A2_PIN, HIGH);
     PORTH = B00100000;
-    PORTE = B00001000;
+    PORTE = B00101000;
     // digitalWrite(B1_PIN, HIGH);
     // digitalWrite(MOTOR_B2_PIN, LOW);
   }
@@ -165,7 +169,7 @@ void read_dual_sensors() {
 }
 
 void topISR() {
-  int state = (PIND & 1 << 3) >> 3;
+  int state = (PIND & _BV(3)) >> 3;
   if (state == HIGH) {
     // Backward
     toggleState = true;
@@ -174,7 +178,7 @@ void topISR() {
     PORTH = B01100000;
     // digitalWrite(B1_PIN, LOW);
     // digitalWrite(MOTOR_B2_PIN, HIGH);
-    PORTE = B00000000;
+    PORTE = B00100000;
     for (volatile int i = 0; i < 5000; i++) {
       Serial.println(i);
     }
@@ -182,13 +186,16 @@ void topISR() {
 }
 
 void forward() {
-  if (digitalRead(VL53LOX_InterruptPinRight) == LOW) {
+  int stateRight = ((_BV(6)) & PINB) >> 6;
+  // if (digitalRead(VL53LOX_InterruptPinRight) == LOW) {
+  if (stateRight == LOW) {
     Serial.println("forward!!!");
     PORTH = B00010000;
-    PORTE = B00001000;
+    PORTE = B00101000;
   }
 }
 
+// PORTB, PORTE, PORTD is INPUT
 
 void setup() {
   Serial.begin(115200);
@@ -225,6 +232,10 @@ void setup() {
   // set pin 18 as input
   PORTD = B00001000;
 
+  // set pin 3, 12 as input
+  PORTE = B00100000;
+  PORTB = B01000000;
+
   attachInterrupt(digitalPinToInterrupt(top), topISR, RISING);
   // Configure Timer 0 for Fast PWM mode
   TCCR0A = (1 << WGM00) | (1 << WGM01) | (1 << COM0A1) | (1 << COM0B1);
@@ -248,9 +259,10 @@ void setup() {
   // digitalWrite(SHT_LOX1, LOW);
   PORTC = B00000000;
   // digitalWrite(SHT_LOX2, LOW);
-  PORTB = B00000000;
-  pinMode(VL53LOX_InterruptPinForward, INPUT);
-  pinMode(VL53LOX_InterruptPinRight, INPUT);
+  PORTB = ~(_BV(1)) & PORTB;
+
+  // pinMode(VL53LOX_InterruptPinForward, INPUT);
+  // pinMode(VL53LOX_InterruptPinRight, INPUT);
 
   // attachInterrupt(digitalPinToInterrupt(VL53LOX_InterruptPin), forward,
   //                 FALLING);
